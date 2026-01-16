@@ -18,16 +18,27 @@ bot.on('text', async (ctx) => {
   await ctx.replyWithMarkdown(message);
 });
 
-// Обработка ошибок (логирование)
+// Обработка ошибок
 bot.catch((err, ctx) => {
-  console.error(`⚠️ Error while processing update ${ctx.update.update_id}:`, err);
+  console.error(`⚠️ Error while processing update ${ctx?.update?.update_id}:`, err);
 });
 
 // Экспортируем обработчик для Vercel
 module.exports = async (req, res) => {
   try {
-    // Передаём запрос в Telegraf
-    await bot.handleUpdate(req.body, res);
+    // Распарсим тело запроса в JSON
+    let body;
+    if (typeof req.body === 'string') {
+      body = JSON.parse(req.body);
+    } else if (req.body && typeof req.body === 'object') {
+      body = req.body;
+    } else {
+      console.error('❌ Request body is not a string or object:', req.body);
+      return res.status(400).send('Bad Request: Body must be JSON');
+    }
+
+    // Передаём распарсенное тело в Telegraf
+    await bot.handleUpdate(body, res);
   } catch (error) {
     console.error('Bot error:', error);
     res.status(500).send('Internal Server Error');
