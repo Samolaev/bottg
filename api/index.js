@@ -1,32 +1,21 @@
 // api/index.js
 import { Telegraf } from 'telegraf';
 
-// Создаём бота один раз (ленивая инициализация)
-let bot;
+// Создаём бота один раз
+const bot = new Telegraf(process.env.TELEGRAM_TOKEN);
 
-function getBot() {
-  if (!bot) {
-    const token = process.env.TELEGRAM_TOKEN;
-    if (!token) {
-      throw new Error('❌ TELEGRAM_TOKEN is missing in Vercel environment!');
-    }
-    bot = new Telegraf(token);
-    
-    bot.on('text', async (ctx) => {
-      const text = ctx.message.text;
-      const message = `✅ Thanks for your message: *"${text}"*\nHave a great day! 👋🏻`;
-      await ctx.replyWithMarkdown(message);
-    });
+bot.on('text', async (ctx) => {
+  const text = ctx.message.text;
+  const message = `✅ Thanks for your message: *"${text}"*\nHave a great day! 👋🏻`;
+  await ctx.replyWithMarkdown(message);
+});
 
-    bot.catch((err) => {
-      console.error('⚠️ Bot error:', err);
-    });
-  }
-  return bot;
-}
+bot.catch((err) => {
+  console.error('⚠️ Bot error:', err);
+});
 
 export default async function handler(request) {
-  // Логируем наличие токена
+  // Логируем токен (уже видим, что он есть)
   console.log('🔍 TELEGRAM_TOKEN length:', process.env.TELEGRAM_TOKEN?.length || 'MISSING');
 
   if (request.method !== 'POST') {
@@ -36,11 +25,13 @@ export default async function handler(request) {
   try {
     const update = await request.json();
 
-    // Обрабатываем в фоне
+    // 🚀 Обрабатываем сообщение в фоне
+    // Используем setImmediate вместо setTimeout для немедленного запуска
     setImmediate(() => {
-      getBot().handleUpdate(update).catch(console.error);
+      bot.handleUpdate(update).catch(console.error);
     });
 
+    // ✅ Возвращаем ответ СРАЗУ — это предотвращает таймаут
     return new Response('OK', { status: 200 });
   } catch (error) {
     console.error('Handler error:', error);
