@@ -7,6 +7,10 @@ import { development, production } from './core';
 const BOT_TOKEN = process.env.BOT_TOKEN || '';
 const ENVIRONMENT = process.env.NODE_ENV || '';
 
+if (!BOT_TOKEN) {
+  console.error('BOT_TOKEN is not set. Please configure it in your environment variables.');
+}
+
 const bot = new Telegraf(BOT_TOKEN);
 
 bot.command('about', about());

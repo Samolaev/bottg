@@ -17,21 +17,27 @@ const production = async (
   debug(`setting webhook: ${VERCEL_URL}`);
 
   if (!VERCEL_URL) {
-    throw new Error('VERCEL_URL is not set.');
+    res.status(500).json({ error: 'VERCEL_URL is not set.' });
+    return;
   }
 
-  const getWebhookInfo = await bot.telegram.getWebhookInfo();
-  if (getWebhookInfo.url !== VERCEL_URL + '/api') {
-    debug(`deleting webhook ${VERCEL_URL}`);
-    await bot.telegram.deleteWebhook();
-    debug(`setting webhook: ${VERCEL_URL}/api`);
-    await bot.telegram.setWebhook(`${VERCEL_URL}/api`);
-  }
+  try {
+    const getWebhookInfo = await bot.telegram.getWebhookInfo();
+    if (getWebhookInfo.url !== VERCEL_URL + '/api') {
+      debug(`deleting webhook ${VERCEL_URL}`);
+      await bot.telegram.deleteWebhook();
+      debug(`setting webhook: ${VERCEL_URL}/api`);
+      await bot.telegram.setWebhook(`${VERCEL_URL}/api`);
+    }
 
-  if (req.method === 'POST') {
-    await bot.handleUpdate(req.body as unknown as Update, res);
-  } else {
-    res.status(200).json('Listening to bot events...');
+    if (req.method === 'POST') {
+      await bot.handleUpdate(req.body as unknown as Update, res);
+    } else {
+      res.status(200).json('Listening to bot events...');
+    }
+  } catch (error) {
+    console.error('Bot error:', error);
+    res.status(500).json({ error: 'Bot initialization failed. Check BOT_TOKEN environment variable.' });
   }
   debug(`starting webhook on port: ${PORT}`);
 };
