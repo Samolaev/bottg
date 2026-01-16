@@ -4,10 +4,7 @@ version = "0.1.0"
 dependencies = [
     "python-telegram-bot==20.7",
     "requests==2.31.0",
-    "yt-dlp==2023.12.30",
-    "beautifulsoup4==4.12.2",
-    "lxml==4.9.3",
-    "flask==3.0.0"
+    "yt-dlp==2023.12.30"
 ]
 
 [build-system]
