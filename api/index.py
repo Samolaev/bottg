@@ -1,10 +1,8 @@
-from flask import Flask, request
+import asyncio
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from downloader import download_video
 import os
-
-app = Flask(__name__)
 
 TOKEN = os.getenv('TELEGRAM_TOKEN')
 if not TOKEN:
@@ -31,14 +29,10 @@ async def handle_message(update: Update, context):
 application.add_handler(CommandHandler('start', start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-@app.route('/', methods=['GET', 'POST'])
-def webhook():
+def handler(request):
     if request.method == 'POST':
         update = Update.de_json(request.get_json(force=True), application.bot)
-        application.process_update(update)
+        asyncio.run(application.process_update(update))
         return 'ok'
     else:
         return 'Bot is running'
-
-if __name__ == '__main__':
-    app.run()
