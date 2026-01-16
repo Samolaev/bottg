@@ -1,0 +1,18 @@
+{
+  "name": "tg-bot-js",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "next": "^14.0.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "node-telegram-bot-api": "^0.66.0",
+    "axios": "^1.6.0",
+    "ytdl-core": "^4.11.0",
+    "cheerio": "^1.0.0-rc.12"
+  }
+}
