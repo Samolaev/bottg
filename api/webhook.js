@@ -4,6 +4,12 @@ const TelegramBot = require('node-telegram-bot-api');
 // Export as an asynchronous function
 // We'll wait until we've responded to the user
 module.exports = async (request, response) => {
+        // 🔍 Проверка наличия токена — ДОБАВЛЕНО ЗДЕСЬ
+    const token = process.env.TELEGRAM_TOKEN;
+    if (!token) {
+        console.error('❌ TELEGRAM_TOKEN is missing in environment variables!');
+        return response.status(500).send('Internal Server Error: Bot token not configured');
+    }
     try {
         // Create our new bot handler with the token
         // that the Botfather gave us
