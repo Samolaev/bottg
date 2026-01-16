@@ -1,6 +1,16 @@
 // api/index.js
 import { Telegraf } from 'telegraf';
 
+export default async function handler(request) {
+  console.log('🔍 TELEGRAM_TOKEN length:', process.env.TELEGRAM_TOKEN?.length || 'MISSING');
+  
+  if (!process.env.TELEGRAM_TOKEN) {
+    console.error('❌ TELEGRAM_TOKEN is missing in Vercel environment!');
+    return new Response('Internal Error', { status: 500 });
+  }
+
+  // ... остальной код
+}
 const token = process.env.TELEGRAM_TOKEN;
 if (!token) {
   throw new Error('❌ TELEGRAM_TOKEN is missing!');
