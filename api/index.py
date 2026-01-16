@@ -5,10 +5,11 @@ from downloader import download_video
 import os
 
 TOKEN = os.getenv('TELEGRAM_TOKEN')
-if not TOKEN:
-    raise ValueError("TELEGRAM_TOKEN not set")
 
-application = Application.builder().token(TOKEN).build()
+if TOKEN:
+    application = Application.builder().token(TOKEN).build()
+else:
+    application = None
 
 async def start(update: Update, context):
     await update.message.reply_text('Отправь ссылку на видео с YouTube, Instagram или TikTok для скачивания')
@@ -30,6 +31,8 @@ application.add_handler(CommandHandler('start', start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
 def handler(request):
+    if not TOKEN:
+        return {'statusCode': 500, 'body': 'TELEGRAM_TOKEN not set'}
     try:
         if request.method == 'POST':
             if request.json:
