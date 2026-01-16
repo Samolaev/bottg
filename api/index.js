@@ -28,11 +28,17 @@ module.exports = async (req, res) => {
   try {
     // Распарсим тело запроса в JSON
     let body;
+
+    // Если тело пришло как строка — парсим
     if (typeof req.body === 'string') {
       body = JSON.parse(req.body);
-    } else if (req.body && typeof req.body === 'object') {
+    }
+    // Если тело уже объект — используем как есть
+    else if (req.body && typeof req.body === 'object') {
       body = req.body;
-    } else {
+    }
+    // Если тело пустое или не подходит — возвращаем 400
+    else {
       console.error('❌ Request body is not a string or object:', req.body);
       return res.status(400).send('Bad Request: Body must be JSON');
     }
