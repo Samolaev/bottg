@@ -49,6 +49,8 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+APPEND_SLASH = False
+
 ROOT_URLCONF = 'vercel_app.urls'
 
 TEMPLATES = [
