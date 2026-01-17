@@ -40,11 +40,16 @@ export async function downloadWithCobalt(url: string): Promise<VideoDownloadResu
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (compatible; TGbot/1.0)'
-      }
+        'User-Agent': 'Mozilla/5.0 (compatible; TGbot/1.0)',
+        'Origin': 'https://cobalt.tools'
+      },
+      timeout: 15000 // 15 секунд таймаут
     });
 
+    debug(`Cobalt response status: ${response.status}`);
+    
     if (response.data && response.data.url) {
+      debug(`Cobalt returned URL: ${response.data.url}`);
       return {
         success: true,
         url: response.data.url,
@@ -52,6 +57,7 @@ export async function downloadWithCobalt(url: string): Promise<VideoDownloadResu
         filename: response.data.filename || 'video.mp4'
       };
     } else {
+      debug(`Cobalt returned invalid response: ${JSON.stringify(response.data)}`);
       return {
         success: false,
         error: 'Cobalt API returned invalid response'
@@ -74,10 +80,13 @@ export async function downloadWithYtdl(url: string): Promise<VideoDownloadResult
     // Попробуем использовать один из публичных API endpoints для youtube-dl
     const apiUrl = `https://api.youtubedl.org/v2?url=${encodeURIComponent(url)}`;
     const response = await axios.get(apiUrl, {
-      timeout: 30000
+      timeout: 15000 // 15 секунд таймаут
     });
 
+    debug(`youtube-dl response status: ${response.status}`);
+    
     if (response.data && response.data.download_links && response.data.download_links.mp4) {
+      debug(`youtube-dl returned URL: ${response.data.download_links.mp4.url}`);
       return {
         success: true,
         url: response.data.download_links.mp4.url,
@@ -85,6 +94,7 @@ export async function downloadWithYtdl(url: string): Promise<VideoDownloadResult
         filename: response.data.title ? `${response.data.title}.mp4` : 'video.mp4'
       };
     } else {
+      debug(`youtube-dl returned invalid response: ${JSON.stringify(response.data)}`);
       return {
         success: false,
         error: 'youtube-dl API returned invalid response'
@@ -110,15 +120,19 @@ export async function downloadWithSsstik(url: string): Promise<VideoDownloadResu
         'Referer': 'https://ssstik.io/',
         'User-Agent': 'Mozilla/5.0 (compatible; TGbot/1.0)',
         'Accept-Language': 'en-US,en;q=0.9'
-      }
+      },
+      timeout: 15000 // 15 секунд таймаут
     });
 
+    debug(`ssstik.io response status: ${response.status}`);
+    
     // Извлекаем URL видео из ответа (потребуется парсинг HTML)
     const html = response.data;
     // Это упрощенный пример - в реальности потребуется более точный парсинг
     const videoMatch = html.match(/<a[^>]+href="(https:\/\/[^"]*\.mp4[^"]*)"/i);
     
     if (videoMatch && videoMatch[1]) {
+      debug(`ssstik.io extracted URL: ${videoMatch[1]}`);
       return {
         success: true,
         url: videoMatch[1],
@@ -126,6 +140,7 @@ export async function downloadWithSsstik(url: string): Promise<VideoDownloadResu
         filename: 'tiktok_video.mp4'
       };
     } else {
+      debug(`ssstik.io could not extract video URL from response`);
       return {
         success: false,
         error: 'Could not extract video URL from ssstik.io response'
@@ -145,7 +160,7 @@ export async function downloadWithSnaptik(url: string): Promise<VideoDownloadRes
   try {
     debug(`Attempting to download video with snaptik.app: ${url}`);
     
-    const response = await axios.post('https://snaptik.app/abc.php', 
+    const response = await axios.post('https://snaptik.app/abc.php',
       new URLSearchParams({
         'url': url,
         'lang': 'en'
@@ -155,16 +170,20 @@ export async function downloadWithSnaptik(url: string): Promise<VideoDownloadRes
           'Content-Type': 'application/x-www-form-urlencoded',
           'Referer': 'https://snaptik.app/',
           'User-Agent': 'Mozilla/5.0 (compatible; TGbot/1.0)'
-        }
+        },
+        timeout: 15000 // 15 секунд таймаут
       }
     );
 
+    debug(`snaptik.app response status: ${response.status}`);
+    
     // Извлекаем URL видео из ответа (потребуется парсинг)
     const html = response.data;
     // Упрощенный пример извлечения
     const videoMatch = html.match(/<a[^>]+href="(https:\/\/[^"]*\.mp4[^"]*)"/i);
     
     if (videoMatch && videoMatch[1]) {
+      debug(`snaptik.app extracted URL: ${videoMatch[1]}`);
       return {
         success: true,
         url: videoMatch[1],
@@ -172,6 +191,7 @@ export async function downloadWithSnaptik(url: string): Promise<VideoDownloadRes
         filename: 'tiktok_video.mp4'
       };
     } else {
+      debug(`snaptik.app could not extract video URL from response`);
       return {
         success: false,
         error: 'Could not extract video URL from snaptik.app response'
@@ -201,29 +221,34 @@ export async function downloadVideo(url: string): Promise<VideoDownloadResult> {
 
   // Попробуем различные методы в порядке предпочтения
   const methods = [
-    () => platform === 'tiktok' ? downloadWithSsstik(url) : Promise.resolve({ success: false, error: 'Not applicable' }),
-    () => platform === 'tiktok' ? downloadWithSnaptik(url) : Promise.resolve({ success: false, error: 'Not applicable' }),
-    () => downloadWithCobalt(url),
-    () => downloadWithYtdl(url)
+    { name: 'ssstik.io', fn: () => platform === 'tiktok' ? downloadWithSsstik(url) : Promise.resolve({ success: false, error: 'Not applicable' }) },
+    { name: 'snaptik.app', fn: () => platform === 'tiktok' ? downloadWithSnaptik(url) : Promise.resolve({ success: false, error: 'Not applicable' }) },
+    { name: 'Cobalt', fn: () => downloadWithCobalt(url) },
+    { name: 'youtube-dl', fn: () => downloadWithYtdl(url) }
   ];
 
   for (const method of methods) {
     try {
+      debug(`Trying download method: ${method.name}`);
+      
       // Устанавливаем таймаут для каждого метода
       const timeoutPromise = new Promise<VideoDownloadResult>((_, reject) => {
-        setTimeout(() => reject(new Error('Method timeout')), 30000); // 30 секунд на каждый метод
+        setTimeout(() => reject(new Error(`${method.name} timeout`)), 20000); // 20 секунд на каждый метод
       });
       
-      const methodPromise = method();
+      const methodPromise = method.fn();
       
       // Ждем выполнения метода или таймаута
       const result = await Promise.race([methodPromise, timeoutPromise]);
       
       if (result.success) {
+        debug(`Successfully downloaded using ${method.name}`);
         return result;
+      } else {
+        debug(`Method ${method.name} failed: ${result.error}`);
       }
     } catch (error: any) {
-      debug(`Method failed: ${error.message}`);
+      debug(`Method ${method.name} failed with error: ${error.message}`);
       continue;
     }
   }
