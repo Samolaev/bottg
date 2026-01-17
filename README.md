@@ -13,6 +13,7 @@ This template inspired by [Telegram Bot Boilerplate](https://github.com/yakovlev
 - Download videos from YouTube, Instagram, and TikTok
 - Automatic link detection in messages
 - Error handling and user notifications
+- Modern API integrations for reliable downloads
 
 ## Before you start
 
@@ -38,6 +39,12 @@ The bot supports the following functionality:
 - Simply send a video link in any message and the bot will automatically detect and download it
 - Supported platforms: YouTube, Instagram, TikTok
 - Maximum file size: 50MB (Telegram limitation)
+- Uses specialized APIs for each platform for reliable downloads
+
+#### Supported URL formats:
+- **YouTube**: `https://www.youtube.com/watch?v=...`, `https://youtu.be/...`
+- **Instagram**: `https://www.instagram.com/p/...`
+- **TikTok**: `https://www.tiktok.com/@user/video/...`, `https://vm.tiktok.com/...`
 
 ## Production
 

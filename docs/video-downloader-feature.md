@@ -10,16 +10,14 @@
 ## Возможности
 
 - Автоматическое определение платформы по ссылке
-- Поддержка нескольких API для загрузки видео
-- Приоритет использования API в следующем порядке:
-  1. Cobalt
-  2. youtube-dl
-  3. ssstik.io (для TikTok)
-  4. snaptik.app (для TikTok)
-- Автоматический выбор метода в зависимости от доступности
+- Специализированные API для каждой платформы:
+  - YouTube: y2mate.com API
+  - Instagram: instagram-downloader-api
+  - TikTok: ssstik.io API
 - Информирование пользователя о статусе выполнения
 - Проверка размера файла перед отправкой в Telegram (ограничение 50MB)
 - Обработка ошибок и предоставление альтернативных способов получения видео
+- Таймауты для предотвращения зависания
 
 ## Команды
 
@@ -39,13 +37,13 @@
 
 - `src/utils/videoDownloader.ts` - основной модуль с логикой загрузки
 - `src/commands/downloadVideo.ts` - команда бота
-- Интеграция с API: Cobalt, youtube-dl, ssstik.io, snaptik.app
+- Интеграция с API: y2mate.com, instagram-downloader-api, ssstik.io
 
 ### Обработка ошибок
 
 - Проверка формата ссылки
 - Проверка поддерживаемых платформ
-- Обработка сетевых ошибок
+- Обработка сетевых ошибок и таймаутов
 - Проверка размера файла перед отправкой
 - Альтернативные способы получения видео при сбоях
 
@@ -59,6 +57,22 @@
 Бот будет:
 1. Анализировать ссылку
 2. Определять платформу
-3. Выбирать подходящий метод загрузки
+3. Выбирать подходящий API для платформы
 4. Загружать видео
 5. Отправлять пользователю результат
+
+## Поддерживаемые форматы ссылок
+
+### YouTube
+- `https://www.youtube.com/watch?v=VIDEO_ID`
+- `https://youtu.be/VIDEO_ID`
+- `https://www.youtube.com/embed/VIDEO_ID`
+- `https://www.youtube.com/v/VIDEO_ID`
+
+### Instagram
+- `https://www.instagram.com/p/POST_ID/`
+- `https://instagr.am/p/POST_ID/`
+
+### TikTok
+- `https://www.tiktok.com/@user/video/VIDEO_ID`
+- `https://vm.tiktok.com/VIDEO_CODE/`

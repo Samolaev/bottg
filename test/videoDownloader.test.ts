@@ -19,6 +19,38 @@ testUrls.forEach(url => {
   console.log(`URL: ${url.substring(0, 50)}... -> Platform: ${platform}`);
 });
 
+// Тест 2: Проверка извлечения YouTube ID
+console.log('\nTest 2: YouTube ID extraction');
+const youtubeUrls = [
+  'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+  'https://youtu.be/dQw4w9WgXcQ',
+  'https://www.youtube.com/embed/dQw4w9WgXcQ',
+  'https://www.youtube.com/v/dQw4w9WgXcQ'
+];
+
+youtubeUrls.forEach(url => {
+  // Импортируем функцию извлечения ID
+  const extractYouTubeId = (url: string): string | null => {
+    const patterns = [
+      /(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/,
+      /youtube\.com\/embed\/([^&\n?#]+)/,
+      /youtube\.com\/v\/([^&\n?#]+)/
+    ];
+
+    for (const pattern of patterns) {
+      const match = url.match(pattern);
+      if (match && match[1]) {
+        return match[1];
+      }
+    }
+
+    return null;
+  };
+
+  const videoId = extractYouTubeId(url);
+  console.log(`URL: ${url} -> ID: ${videoId}`);
+});
+
 console.log('\nTesting completed.');
 
 // Для полного тестирования загрузки видео нужно запустить бота
