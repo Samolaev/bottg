@@ -1,14 +1,17 @@
 // scripts/set-webhook.mjs
 const TOKEN = process.env.BOT_TOKEN;
-const WEBHOOK_URL = `https://${process.env.VERCEL_URL}/api`;
+// 👇 ЯВНО УКАЗЫВАЕМ ОСНОВНОЙ ДОМЕН
+const PRODUCTION_URL = "bottg-peach.vercel.app";
+const WEBHOOK_URL = `https://${PRODUCTION_URL}/api`;
 
 if (!TOKEN) {
   console.warn('⚠️ BOT_TOKEN не задан — пропускаем установку вебхука');
   process.exit(0);
 }
 
-if (!process.env.VERCEL_URL) {
-  console.warn('⚠️ VERCEL_URL не доступен — возможно, локальная сборка');
+// 👇 Устанавливаем вебхук ТОЛЬКО для production-деплоев
+if (process.env.VERCEL_ENV !== 'production') {
+  console.log('⏭️ Пропускаем установку вебхука (не production)');
   process.exit(0);
 }
 
