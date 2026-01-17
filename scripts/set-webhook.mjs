@@ -2,7 +2,7 @@
 const TOKEN = process.env.BOT_TOKEN;
 // 👇 ЯВНО УКАЗЫВАЕМ ОСНОВНОЙ ДОМЕН
 const PRODUCTION_URL = "bottg-peach.vercel.app";
-const WEBHOOK_URL = `https://${PRODUCTION_URL}/api`;
+const WEBHOOK_URL = `https://${PRODUCTION_URL}/api/`;
 
 if (!TOKEN) {
   console.warn('⚠️ BOT_TOKEN не задан — пропускаем установку вебхука');
