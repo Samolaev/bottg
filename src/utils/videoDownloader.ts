@@ -1,258 +1,260 @@
+// src/utils/videoDownloader.ts
 import axios from 'axios';
 import { Context } from 'telegraf';
 import createDebug from 'debug';
 
 const debug = createDebug('bot:videoDownloader');
 
-// Типы для результатов скачивания
+// Типы
 export interface VideoDownloadResult {
   success: boolean;
   url?: string;
   filename?: string;
   error?: string;
   platform?: string | null;
+  fallbackMessage?: string; // Для случаев, когда автоматика не работает
 }
 
-// Функция определения платформы по URL
+// Определяем платформу
 export function detectPlatform(url: string): string | null {
   const lowerUrl = url.toLowerCase();
-
-  if (lowerUrl.includes('youtube.com') || lowerUrl.includes('youtu.be')) {
-    return 'youtube';
-  } else if (lowerUrl.includes('instagram.com') || lowerUrl.includes('instagr.am')) {
-    return 'instagram';
-  } else if (lowerUrl.includes('tiktok.com') || lowerUrl.includes('vm.tiktok.com')) {
-    return 'tiktok';
-  }
-
+  if (lowerUrl.includes('youtube.com') || lowerUrl.includes('youtu.be')) return 'youtube';
+  if (lowerUrl.includes('instagram.com') || lowerUrl.includes('instagr.am')) return 'instagram';
+  if (lowerUrl.includes('tiktok.com') || lowerUrl.includes('vm.tiktok.com')) return 'tiktok';
   return null;
 }
 
-// Функция для скачивания видео с YouTube через y2mate.com
+// Вспомогательная функция: безопасный запрос с retry
+async function fetchWithRetry<T>(
+  url: string,
+  options: any = {},
+  retries = 2,
+  delayMs = 2000
+): Promise<T> {
+  let lastError: any;
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const response = await axios.get(url, {
+        timeout: 30000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+          'Accept': 'application/json, text/plain, */*',
+          'Referer': 'https://ssstik.io/',
+          ...options.headers
+        },
+        ...options
+      });
+      return response.data as T;
+    } catch (error: any) {
+      lastError = error;
+      debug(`Attempt ${i + 1} failed: ${error.message}`);
+      if (i < retries) await new Promise(r => setTimeout(r, delayMs));
+    }
+  }
+  throw lastError;
+}
+
+// YouTube: используем альтернативный API
 export async function downloadFromYouTube(url: string): Promise<VideoDownloadResult> {
   try {
-    debug(`Attempting to download YouTube video: ${url}`);
-
-    // Получаем ID видео из URL
     const videoId = extractYouTubeId(url);
     if (!videoId) {
       return { success: false, error: 'Invalid YouTube URL' };
     }
 
-    // Используем простой API для получения прямой ссылки
-    const apiUrl = `https://api.y2mate.com/v2/analyze?url=https://www.youtube.com/watch?v=${videoId}`;
+    // Альтернатива 1: cobalt.tools (открытый, без водяных знаков, работает из Vercel)
+    try {
+      const cobaltResponse = await fetchWithRetry<any>(
+        `https://api.cobalt.tools/api/json`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          data: JSON.stringify({
+            url: `https://www.youtube.com/watch?v=${videoId}`,
+            downloadMode: "audio+video"
+          })
+        }
+      );
 
-    const response = await axios.get(apiUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'application/json'
-      },
-      timeout: 10000
-    });
-
-    if (response.data && response.data.vid) {
-      // Получаем ссылку на скачивание
-      const convertUrl = `https://api.y2mate.com/v2/convert?url=https://www.youtube.com/watch?v=${videoId}&vid=${response.data.vid}&k=mp4`;
-
-      const convertResponse = await axios.get(convertUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Accept': 'application/json'
-        },
-        timeout: 15000
-      });
-
-      if (convertResponse.data && convertResponse.data.dlink) {
+      if (cobaltResponse.status === 'success' && cobaltResponse.url) {
         return {
           success: true,
-          url: convertResponse.data.dlink,
+          url: cobaltResponse.url,
           platform: 'youtube',
           filename: `youtube_${videoId}.mp4`
         };
       }
+    } catch (e) {
+      debug('Cobalt failed:', e.message);
     }
 
-    return { success: false, error: 'Could not get download link from y2mate' };
+    // Fallback: дать ссылку на сайт
+    return {
+      success: false,
+      platform: 'youtube',
+      fallbackMessage: `📹 Не удалось скачать видео автоматически.\n\n👉 Откройте в браузере: https://cobalt.tools/\nВставьте ссылку: ${url}`
+    };
+
   } catch (error: any) {
-    debug(`YouTube download failed: ${error.message}`);
-    return { success: false, error: `YouTube download failed: ${error.message}` };
+    debug(`YouTube download error: ${error.message}`);
+    return {
+      success: false,
+      error: 'Ошибка при обработке YouTube-ссылки',
+      fallbackMessage: `📹 Попробуйте скачать вручную: https://cobalt.tools/`
+    };
   }
 }
 
-// Функция для скачивания видео с TikTok через ssstik.io
+// TikTok: ssstik.io + fallback
 export async function downloadFromTikTok(url: string): Promise<VideoDownloadResult> {
   try {
-    debug(`Attempting to download TikTok video: ${url}`);
+    // Основной метод: ssstik.io
+    try {
+      const apiUrl = `https://ssstik.io/abc?url=dl&id=${encodeURIComponent(url)}`;
+      const html = await fetchWithRetry<string>(apiUrl, { responseType: 'text' });
 
-    // Используем API ssstik.io
-    const apiUrl = `https://ssstik.io/api/ssstik?url=${encodeURIComponent(url)}`;
-
-    const response = await axios.get(apiUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'application/json',
-        'Referer': 'https://ssstik.io/'
-      },
-      timeout: 15000
-    });
-
-    if (response.data && response.data.video_url) {
-      return {
-        success: true,
-        url: response.data.video_url,
-        platform: 'tiktok',
-        filename: 'tiktok_video.mp4'
-      };
+      // Извлекаем прямую ссылку из HTML (парсинг, так как API закрыт)
+      const match = html.match(/<a[^>]*href="([^"]*\.mp4[^"]*)"[^>]*>Download/);
+      if (match && match[1]) {
+        const cleanUrl = match[1].replace(/&amp;/g, '&');
+        return {
+          success: true,
+          url: cleanUrl,
+          platform: 'tiktok',
+          filename: 'tiktok_video.mp4'
+        };
+      }
+    } catch (e) {
+      debug('ssstik.io failed:', e.message);
     }
 
-    return { success: false, error: 'Could not get video URL from ssstik' };
+    // Fallback: инструкция
+    return {
+      success: false,
+      platform: 'tiktok',
+      fallbackMessage: `📹 Не удалось скачать видео.\n\n👉 Перейдите на https://ssstik.io/\nВставьте ссылку и нажмите "Save TikTok"`
+    };
+
   } catch (error: any) {
-    debug(`TikTok download failed: ${error.message}`);
-    return { success: false, error: `TikTok download failed: ${error.message}` };
+    debug(`TikTok download error: ${error.message}`);
+    return {
+      success: false,
+      error: 'Ошибка при обработке TikTok-ссылки',
+      fallbackMessage: `📹 Скачайте вручную: https://ssstik.io/`
+    };
   }
 }
 
-// Функция для скачивания видео с Instagram
+// Instagram: используем проверенный API или fallback
 export async function downloadFromInstagram(url: string): Promise<VideoDownloadResult> {
   try {
-    debug(`Attempting to download Instagram video: ${url}`);
-
-    // Используем простой API для Instagram
-    const apiUrl = `https://instagram-downloader-api.vercel.app/api/download?url=${encodeURIComponent(url)}`;
-
-    const response = await axios.get(apiUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'application/json'
-      },
-      timeout: 15000
-    });
-
-    if (response.data && response.data.video_url) {
-      return {
-        success: true,
-        url: response.data.video_url,
-        platform: 'instagram',
-        filename: 'instagram_video.mp4'
-      };
+    // Пробуем ваш API
+    try {
+      const data = await fetchWithRetry<any>(
+        `https://instagram-downloader-api.vercel.app/api/download?url=${encodeURIComponent(url)}`
+      );
+      if (data?.video_url) {
+        return {
+          success: true,
+          url: data.video_url,
+          platform: 'instagram',
+          filename: 'instagram_video.mp4'
+        };
+      }
+    } catch (e) {
+      debug('Instagram API failed:', e.message);
     }
 
-    return { success: false, error: 'Could not get video URL from Instagram API' };
+    // Fallback: инструкция
+    return {
+      success: false,
+      platform: 'instagram',
+      fallbackMessage: `📸 Не удалось скачать видео.\n\n👉 Откройте в браузере: https://savefrom.net/\nВставьте ссылку: ${url}`
+    };
+
   } catch (error: any) {
-    debug(`Instagram download failed: ${error.message}`);
-    return { success: false, error: `Instagram download failed: ${error.message}` };
+    debug(`Instagram download error: ${error.message}`);
+    return {
+      success: false,
+      error: 'Ошибка при обработке Instagram-ссылки',
+      fallbackMessage: `📸 Скачайте вручную: https://savefrom.net/`
+    };
   }
 }
 
-// Вспомогательная функция для извлечения YouTube ID
+// Извлечение YouTube ID
 function extractYouTubeId(url: string): string | null {
   const patterns = [
     /(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/,
     /youtube\.com\/embed\/([^&\n?#]+)/,
     /youtube\.com\/v\/([^&\n?#]+)/
   ];
-
   for (const pattern of patterns) {
     const match = url.match(pattern);
-    if (match && match[1]) {
-      return match[1];
-    }
+    if (match?.[1]) return match[1];
   }
-
   return null;
 }
 
-// Основная функция загрузки видео
+// Основная функция
 export async function downloadVideo(url: string): Promise<VideoDownloadResult> {
   const platform = detectPlatform(url);
-
-  debug(`Detected platform: ${platform} for URL: ${url}`);
-
   if (!platform) {
     return {
       success: false,
-      error: 'Unsupported platform. Currently supported: YouTube, Instagram, TikTok.'
+      error: 'Поддерживаются только YouTube, TikTok и Instagram.'
     };
   }
 
-  // Выбираем метод в зависимости от платформы
-  let downloadFunction: (url: string) => Promise<VideoDownloadResult>;
-
-  switch (platform) {
-    case 'youtube':
-      downloadFunction = downloadFromYouTube;
-      break;
-    case 'instagram':
-      downloadFunction = downloadFromInstagram;
-      break;
-    case 'tiktok':
-      downloadFunction = downloadFromTikTok;
-      break;
-    default:
-      return { success: false, error: 'Unsupported platform' };
-  }
-
   try {
-    debug(`Starting download for ${platform} video`);
+    debug(`Starting download for ${platform}: ${url}`);
 
-    // Устанавливаем таймаут для загрузки
-    const timeoutPromise = new Promise<VideoDownloadResult>((_, reject) => {
-      setTimeout(() => reject(new Error('Download timeout')), 30000); // 30 секунд
-    });
-
-    const downloadPromise = downloadFunction(url);
-
-    const result = await Promise.race([downloadPromise, timeoutPromise]);
-
-    if (result.success) {
-      debug(`Successfully downloaded ${platform} video`);
-      return result;
-    } else {
-      debug(`Download failed: ${result.error}`);
-      return result;
+    switch (platform) {
+      case 'youtube': return await downloadFromYouTube(url);
+      case 'tiktok': return await downloadFromTikTok(url);
+      case 'instagram': return await downloadFromInstagram(url);
+      default: return { success: false, error: 'Неподдерживаемая платформа' };
     }
   } catch (error: any) {
-    debug(`Download error: ${error.message}`);
-    return { success: false, error: `Download failed: ${error.message}` };
+    debug(`Unexpected error in downloadVideo: ${error.message}`);
+    return {
+      success: false,
+      error: 'Неожиданная ошибка при обработке',
+      fallbackMessage: 'Попробуйте позже или скачайте вручную.'
+    };
   }
 }
 
-// Функция отправки видео пользователю
-export async function sendVideoToUser(ctx: Context, videoResult: VideoDownloadResult) {
-  if (!videoResult.success || !videoResult.url) {
-    const errorMessage = videoResult.error || 'Неизвестная ошибка при загрузке видео';
-    await ctx.reply(`❌ Ошибка при загрузке видео: ${errorMessage}`);
-    return;
-  }
-
-  try {
-    await ctx.reply('📥 Видео готово! Отправляю...');
-
-    // Проверяем размер файла перед отправкой
+// Отправка пользователю
+export async function sendVideoToUser(ctx: Context, result: VideoDownloadResult) {
+  if (result.success && result.url) {
     try {
-      const headResponse = await axios.head(videoResult.url, { timeout: 5000 });
-      const contentLength = headResponse.headers['content-length'];
+      await ctx.reply('📥 Видео готово! Отправляю...');
 
-      if (contentLength) {
-        const fileSizeInMB = parseInt(contentLength) / (1024 * 1024);
-
-        if (fileSizeInMB > 50) {
-          await ctx.reply(`⚠️ Видео слишком большое для отправки в Telegram (${fileSizeInMB.toFixed(2)} MB). Вы можете скачать его по ссылке: ${videoResult.url}`);
+      // Проверка размера (опционально)
+      try {
+        const head = await axios.head(result.url, { timeout: 5000 });
+        const size = parseInt(head.headers['content-length'] || '0');
+        if (size > 50 * 1024 * 1024) { // >50 MB
+          await ctx.reply(`⚠️ Видео слишком большое (${(size / (1024 * 1024)).toFixed(1)} MB).\nСкачайте по ссылке: ${result.url}`);
           return;
         }
+      } catch (e) {
+        debug('Could not check file size');
       }
-    } catch (headError) {
-      debug(`Could not determine file size: ${headError}`);
-      // Продолжаем отправку даже если не удалось проверить размер
-    }
 
-    await ctx.replyWithVideo({
-      url: videoResult.url
-    }, {
-      caption: `📹 Видео с ${videoResult.platform || 'неизвестной платформы'}`
-    });
-  } catch (error: any) {
-    debug(`Failed to send video to user: ${error.message}`);
-    await ctx.reply(`⚠️ Не удалось отправить видео напрямую, но вы можете скачать его по ссылке: ${videoResult.url}`);
+      await ctx.replyWithVideo({ url: result.url }, {
+        caption: `📹 Видео с ${result.platform || 'платформы'}`
+      });
+    } catch (e) {
+      debug('Failed to send video directly');
+      await ctx.reply(`✅ Найдено видео!\nСкачайте по ссылке: ${result.url}`);
+    }
+  } else {
+    const msg = result.fallbackMessage || `❌ ${result.error || 'Не удалось обработать ссылку.'}`;
+    await ctx.reply(msg);
   }
 }
